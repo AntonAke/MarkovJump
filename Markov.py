@@ -1,43 +1,105 @@
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
-Beta_a = [2, 1]		# Kontakter i [population a, population b]
-Beta_b = [1,2]
-Time = 7
-Fatality = 0.005	#kan beskrivas senare som en fördelning
-gamma = 1 #Sannolikhet att tillfrriskna per tidsenhet
+global Beta,Time, Fatality
+Beta  = 10 #Antal smittsamma kontakter
+Time = 8 #Tiden sjuk/smittsam om man är sjuka
+Fatality = 0.005	# kan beskrivas senare som en fördelning
+
+class Stad:
+    S = 0  #Antalet personer som kan smittal
+    N = 0 # Totalt antal individer i staden
+    I = 0 #Antalet smittade
+    R = 0# Antalet tillfrisknade
+    D = 0 # Antal döda
+    C = [] #Andel kontakter mellan personer i staden och de i staden på indexet
+    def __init__(self, pop, infected, contacts):
+        self.N = pop
+        self.I = infected
+        self.S = pop-infected
+        self.C = contacts
+
+    def infected(self):
+        self.I+=1;
+        self.S-=1
+
+    def recover(self):
+        self.R+=1
+        self.I-=1
+
+    def die(self):
+        self.D+=1
+        self.I-=1
+
+    def get_Infected(self):
+        return self.I
+
+    def get_Population(self):
+        return self.N
+
+    def get_Susceptible(self):
+        return self.S
 
 
-S_a = 100 # Totalt antal individer i populationen a
-S_b = 100 # Totalt antal individer i populationen b
-I_a = 1   # Antal smittade i a
-I_b = 0		# Antal smittade i b
-R_a = 0		# Antalet tillfrisknade
-R_b = 0
-D_a = 0 	# Antal döda
-D_b = 0
-N_a = S_a + I_a + R_a
-N_b = S_b + I_b + R_b
-W_infect_a = (Beta_a[0]*S_a*I_a + Beta_a[1]*I_b*S_a)/(Time*N_a) #Sannolikhet att någon i A smittas per tidsenhet
-W_infect_b = (Beta_b[0]*S_b*I_a + Beta_b[1]*I_b*S_b)/(Time*N_a) #Sannolikhet att någon i B smittas per tidsenhet
-W_recover_a = gamma*I_a #Sannolikhet att någon i A tillfrisknar per tidsenhet
-W_recover_b = gamma*I_b #Sannolikhet att någon i B tillfrisknar per tidsenhet
-W_die_a = fatality*I_a/Time #Sannolikhet att någon i A dör per tidsenhet
-W_die_b = fatality*I_b/Time #Sannolikhet att någon i B dör per tidsenhet
 
-def TimeStep(R, W): #Takes a time step
-  timeStep = np.random.exponential(R,1)
-  event = np.random.uniform(0,1)
-  return (timeStep,event)
+def timeStep(W, stadslista): #Tar ett tidssteg, givet en lista med Sannolikhet/tid för alla händelser
+    R = sum(W)
+    timeStep = np.random.exponential(1/R)
+    event = np.random.uniform(0,R)
+    count = 0
+    for i in range(len(W)):
+        count += W[i]
+        if count>=event:
+            break
+    stad=i//3
+    Händelse=i%3
+    if Händelse == 0:
+        stadslista[stad].infected()
+    elif Händelse == 1:
+        stadslista[stad].recover()
+    else:
+        stadslista[stad].die()
+    return timeStep
 
-def Simulate(time): #Does the simulation
-  t = 0
-  timeList = []
-  InfectedList = []
-  while t<time:
-    (delta_t, event) = TimeStep(R,W)
-    t += dt
-        #do event
-    #Plot result
-    timeList.append(time)
-    InfectedList.append(I_a)
+def update(stadslista):
+    Händelser = []
+    for i in range(len(stadslista)):
+        stad = stadslista[i]
+        W_infect = Beta*stad.S/(Time*stad.N)*sum(map(lambda s:s.I*s.C[i], stadslista)) #Sannolikhet att någon i staden smittas
+        W_recover = stad.I/Time #Sannolikhet att någon i staden tillfrisknar
+        W_die = Fatality*stad.I/Time #Sannolikhet att någon i staden dör
+        Händelser.extend([W_infect, W_recover,W_die])
+    return Händelser
+
+
+def Simulate(end_time, stadslista): #Gör simuleringen
+    t = 0
+    Händelser = update(stadslista)
+    InfectedList = [[] for i in range(len(stadslista))]
+    nextDay = 1
+    while t<end_time and sum(Händelser)>0:
+        for i in range(len(stadslista)):
+            InfectedList[i].append(stadslista[i].get_Infected()/stadslista[i].N)
+        while t<nextDay and sum(Händelser)>0:
+            delta_t = timeStep(Händelser, stadslista)
+            t += delta_t
+            Händelser = update(stadslista)
+        nextDay+=1
+    return InfectedList
+#Cool_visualisation(Data)
+
+"""def Cool_visualisation(Data):
+continue"""
+def main():
+    Stad_A = Stad(300000,100, [19/20, 1/20])
+    Stad_B = Stad(100000,0, [2/10,8/10])
+    stadslista = [Stad_A,Stad_B]
+    result = Simulate(10, stadslista)
+    for i in range(len(stadslista)):
+        plt.plot(result[i])
+        stad = stadslista[i]
+        print("Total infected:", (stad.R+stad.I)/stad.N, "Dead:", stad.D/stad.N)
+    plt.show()
+
+if __name__ == "__main__":
+    main()
