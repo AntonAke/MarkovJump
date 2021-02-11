@@ -2,9 +2,9 @@ import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
 global Beta,Time, Fatality
-Beta  = 10 #Antal smittsamma kontakter
+Beta  = 18 #Antal smittsamma kontakter
 Time = 8 #Tiden sjuk/smittsam om man är sjuka
-Fatality = 0.005	# kan beskrivas senare som en fördelning
+Fatality = 0.001	# kan beskrivas senare som en fördelning
 
 class Stad:
     S = 0  #Antalet personer som kan smittal
@@ -16,8 +16,10 @@ class Stad:
     def __init__(self, pop, infected, contacts):
         self.N = pop
         self.I = infected
-        self.S = pop-infected
+        self.R = 0.93*pop
+        self.S = pop-infected-self.R
         self.C = contacts
+
 
     def infected(self):
         self.I+=1;
@@ -66,8 +68,8 @@ def update(stadslista):
     for i in range(len(stadslista)):
         stad = stadslista[i]
         W_infect = Beta*stad.S/(Time*stad.N)*sum(map(lambda s:s.I*s.C[i], stadslista)) #Sannolikhet att någon i staden smittas
-        W_recover = stad.I/Time #Sannolikhet att någon i staden tillfrisknar
-        W_die = Fatality*stad.I/Time #Sannolikhet att någon i staden dör
+        W_recover = stad.I/Time*1/(1+Fatality) #Sannolikhet att någon i staden tillfrisknar
+        W_die = Fatality*stad.I/Time*Fatality/(1+Fatality) #Sannolikhet att någon i staden dör
         Händelser.extend([W_infect, W_recover,W_die])
     return Händelser
 
@@ -91,10 +93,15 @@ def Simulate(end_time, stadslista): #Gör simuleringen
 """def Cool_visualisation(Data):
 continue"""
 def main():
-    Stad_A = Stad(300000,100, [19/20, 1/20])
-    Stad_B = Stad(100000,0, [2/10,8/10])
-    stadslista = [Stad_A,Stad_B]
-    result = Simulate(10, stadslista)
+    """Stad_A = Stad(300000,0, [898/1000, 1/10, 2/1000])
+    Stad_B = Stad(100000,0, [30/100,698/1000, 2/1000])
+    Stad_C = Stad(20000, 10, [3/100, 1/100, 96/100])"""
+    Stad_A = Stad(100000,0, [98/100, 1/100, 1/100])
+    Stad_B = Stad(100000,10, [1/100,99/100, 0])
+    Stad_C = Stad(100000, 0, [1/100, 0, 99/100])
+
+    stadslista = [Stad_A,Stad_B,Stad_C]
+    result = Simulate(1000, stadslista)
     for i in range(len(stadslista)):
         plt.plot(result[i])
         stad = stadslista[i]
